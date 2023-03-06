@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "960668983959",
+    "project_id": "spot-noww",
+    "storage_bucket": "spot-noww.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:960668983959:android:0c0927ca4430b538393fd2",
+        "android_client_info": {
+          "package_name": "com.spotnoww.spotnoww0"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "960668983959-898f49lkm76rdnhev91916r34sd807l1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.spotnoww.spotnoww0",
+            "certificate_hash": "e9edfa2bf72ad44a4edb304cbc90b33bd7d63dec"
+          }
+        },
+        {
+          "client_id": "960668983959-br33d4bc6sqi7850dflct4gor9tn1sr6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsyYYyTZ1a_2nmAQccvqin9A4FJccw7Dg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "960668983959-br33d4bc6sqi7850dflct4gor9tn1sr6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
