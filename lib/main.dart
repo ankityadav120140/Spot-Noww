@@ -8,7 +8,6 @@ import 'package:spot_noww/pages/login.dart';
 import 'package:spot_noww/utilities/global.dart';
 
 final FirebaseAuth auth = FirebaseAuth.instance;
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();

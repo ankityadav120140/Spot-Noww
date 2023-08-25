@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_const_constructors
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_signin_button/button_view.dart';
@@ -40,7 +41,24 @@ class _LoginPageState extends State<LoginPage> {
       final UserCredential userCredential =
           await auth.signInWithCredential(credential);
       preferences.setString("mail", userCredential.user!.email as String);
+      preferences.setString("Img", userCredential.user!.photoURL as String);
+      print('Photo URL: ${userCredential.user!.photoURL}');
+      preferences.setString("Name", userCredential.user!.displayName as String);
       print('User signed in: ${userCredential.user!.displayName}');
+      DocumentReference ref = FirebaseFirestore.instance
+          .collection('users')
+          .doc(preferences.getString('mail'));
+      FirebaseFirestore.instance.runTransaction((transaction) async {
+        DocumentSnapshot snapshot = await transaction.get(ref);
+        if (!snapshot.exists) {
+          ref.set({
+            'profilePic': "",
+            'name': "",
+            'phone': "",
+            'mail': "",
+          });
+        }
+      });
       Navigator.of(context)
           .pushReplacement(MaterialPageRoute(builder: (context) => Home()));
     } catch (error) {

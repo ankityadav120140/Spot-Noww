@@ -8,11 +8,10 @@ import 'package:dropdown_search/dropdown_search.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'package:geocoding/geocoding.dart' as geo;
 import 'package:get/get.dart';
+import 'package:location/location.dart';
 import 'package:spot_noww/pages/home.dart';
-import 'package:spot_noww/pages/homePage.dart';
-import 'package:spot_noww/pages/profile.dart';
 import 'package:spot_noww/utilities/global.dart';
 
 final _formKey = GlobalKey<FormState>();
@@ -102,6 +101,8 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   late TextEditingController name;
   late TextEditingController workEx;
+  late TextEditingController range;
+  late TextEditingController fee;
   late TextEditingController bio;
   late TextEditingController phone;
   String selectedField = "NONE";
@@ -116,20 +117,30 @@ class _RegisterPageState extends State<RegisterPage> {
 
   void register() async {
     DocumentReference ref = FirebaseFirestore.instance
-        .collection('partners')
+        .collection('partner s')
         .doc(preferences.getString('mail'));
     // .doc();
+    GeoPoint location =
+        GeoPoint(_locationData.latitude!, _locationData.longitude!);
     FirebaseFirestore.instance.runTransaction((transaction) async {
       DocumentSnapshot snapshot = await transaction.get(ref);
       if (!snapshot.exists) {
         ref.set({
           'profilePic': dpLink,
           'name': name.text,
-          'phone': phone.text,
-          'workEx': workEx.text,
           'field': selectedField,
+          'workEx': workEx.text,
+          'serviceImges': json.encode(serviceImgLink),
+          'desc': bio.text,
+          'phone': phone.text,
+          'myLoc': location,
+          'address': _currentAddress,
+          'fee': fee.text,
+          'range': range.text,
           'docs': json.encode(docsLink),
-          'bio': bio.text,
+          'rating': 0.0,
+          'clients': 0,
+          'verified': false,
         }).then((value) {
           const snackBar = SnackBar(
             backgroundColor: Colors.green,
@@ -144,11 +155,16 @@ class _RegisterPageState extends State<RegisterPage> {
         ref.update({
           'profilePic': dpLink,
           'name': name.text,
-          'phone': phone.text,
-          'workEx': workEx.text,
           'field': selectedField,
+          'workEx': workEx.text,
+          'serviceImges': json.encode(serviceImgLink),
+          'desc': bio.text,
+          'phone': phone.text,
+          'myLoc': location,
+          'address': _currentAddress,
+          'fee': fee.text,
+          'range': range.text,
           'docs': json.encode(docsLink),
-          'bio': bio.text,
         }).then((value) {
           const snackBar = SnackBar(
             backgroundColor: Colors.green,
@@ -178,6 +194,31 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  List<File>? serviceImg;
+  List<String> serviceImgLink = [];
+
+  void PickServiceImg() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.image,
+    );
+    if (result != null) {
+      setState(() {
+        serviceImg = result.paths.map((path) => File(path!)).toList();
+      });
+
+      for (int i = 0; i < serviceImg!.length; i++) {
+        serviceImgLink.add(await uploadFile(
+          serviceImg![i],
+          "${{preferences.getString('mail')}.first as String}+$i",
+          "serviceImg",
+        ));
+      }
+    } else {
+      print("No file selected");
+    }
+  }
+
   List<File>? docs;
   List<String> docsLink = [];
 
@@ -185,7 +226,13 @@ class _RegisterPageState extends State<RegisterPage> {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
-      allowedExtensions: ['jpg', 'pdf', 'doc', 'jpeg', 'png'],
+      allowedExtensions: [
+        'jpg',
+        'pdf',
+        'doc',
+        'jpeg',
+        'png',
+      ],
     );
     if (result != null) {
       setState(() {
@@ -201,14 +248,82 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  bool isLoading = false;
+
+  late LocationData _locationData;
+  String _currentAddress = "";
+
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    Location location = Location();
+
+    bool serviceEnabled;
+    PermissionStatus permissionGranted;
+
+    serviceEnabled = await location.serviceEnabled();
+    if (!serviceEnabled) {
+      serviceEnabled = await location.requestService();
+      if (!serviceEnabled) {
+        return;
+      }
+    }
+
+    permissionGranted = await location.hasPermission();
+    if (permissionGranted == PermissionStatus.denied) {
+      permissionGranted = await location.requestPermission();
+      if (permissionGranted != PermissionStatus.granted) {
+        return;
+      }
+    }
+
+    _locationData = await location.getLocation();
+
+    _getAddressFromLatLng();
+  }
+
+  _getAddressFromLatLng() async {
+    try {
+      // Ensure that _locationData is initialized before using it
+      if (_locationData == null) {
+        await _getCurrentLocation();
+      }
+
+      List<geo.Placemark> placemarks = await geo.placemarkFromCoordinates(
+        _locationData.latitude!,
+        _locationData.longitude!,
+      );
+
+      geo.Placemark place = placemarks[0];
+
+      setState(() {
+        _currentAddress =
+            "${place.name}, ${place.locality}, ${place.postalCode}, ${place.country}";
+      });
+
+      // _saveLocationToFirestore();
+    } catch (e) {
+      print(e);
+    }
+
+    setState(() {
+      isLoading = false;
+    });
+  }
+
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
+    // _getCurrentLocation();
     name = TextEditingController(text: "");
     workEx = TextEditingController(text: "");
     bio = TextEditingController(text: "");
     phone = TextEditingController(text: "");
+    range = TextEditingController(text: "");
+    fee = TextEditingController(text: "");
   }
 
   @override
@@ -219,179 +334,315 @@ class _RegisterPageState extends State<RegisterPage> {
           "Regsiter as partner",
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              GestureDetector(
-                onTap: PickProfile,
-                child: profilePic == null
-                    ? Container(
-                        child: Icon(
-                          Icons.person,
-                          color: Colors.indigo,
-                          size: 80,
-                        ),
-                      )
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.file(
-                          profilePic!,
-                          height: 200,
-                        ),
-                      ),
-              ),
-              SizedBox(
-                height: 20,
-              ),
-              TextFormField(
-                controller: name,
-                keyboardType: TextInputType.name,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your name';
-                  }
-                  return null;
-                },
-                decoration: InputDecoration(
-                  labelText: 'Name',
-                ),
-              ),
-              SizedBox(
-                height: 20,
-              ),
-              TextFormField(
-                controller: phone,
-                keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your Contact Number';
-                  }
-                  return null;
-                },
-                decoration: InputDecoration(
-                  labelText: 'Contact Number',
-                ),
-              ),
-              SizedBox(
-                height: 20,
-              ),
-              TextFormField(
-                controller: workEx,
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your work experience year';
-                  }
-                  return null;
-                },
-                decoration: InputDecoration(
-                  labelText: 'Years of experience',
-                ),
-              ),
-              SizedBox(
-                height: 20,
-              ),
-              InputDecorator(
-                decoration: InputDecoration(
-                  label: Text(
-                    "Service you provide",
-                    style: TextStyle(fontSize: 20),
-                  ),
-                ),
-                child: DropdownSearch(
-                  mode: Mode.BOTTOM_SHEET,
-                  showSearchBox: true,
-                  items: fields,
-                  enabled: true,
-                  onChanged: (value) {
-                    setState(() {
-                      selectedField = value!;
-                    });
-                  },
-                  selectedItem: selectedField,
-                ),
-              ),
-              GestureDetector(
-                onTap: PickDocs,
-                child: docs == null
-                    ? Container(
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.folder,
-                              color: Colors.amber,
-                              size: 80,
+      body: isLoading
+          ? Center(
+              child: CircularProgressIndicator(),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: PickProfile,
+                      child: profilePic == null
+                          ? Container(
+                              child: Icon(
+                                Icons.person,
+                                color: Colors.indigo,
+                                size: 80,
+                              ),
+                            )
+                          : ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Image.file(
+                                profilePic!,
+                                height: 200,
+                              ),
                             ),
-                            Text(
-                              "Documents",
-                            ),
-                          ],
-                        ),
-                      )
-                    : Container(
-                        width: double.infinity,
-                        height: 200,
-                        child: ListView.builder(
-                          itemCount: docs!.length,
-                          itemBuilder: (BuildContext context, int index) {
-                            return ListTile(
-                              title: Text(
-                                  docs![index].path.removeAllWhitespace.trim()),
-                            );
-                          },
-                        ),
-                      ),
-              ),
-              SizedBox(
-                height: 20,
-              ),
-              TextFormField(
-                maxLines: 3,
-                controller: bio,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Enter Your Details';
-                  }
-                  return null;
-                },
-                decoration: InputDecoration(
-                  labelText: 'BIO',
-                ),
-              ),
-              SizedBox(
-                height: 20,
-              ),
-              Container(
-                height: 50,
-                // margin: EdgeInsets.all(20),
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      // Handle form submission here
-                      print("Name : ${name.text}");
-                      print("YOE : ${workEx.text}");
-                      print("Field : $selectedField");
-                      preferences.setBool("registered", true);
-                      register();
-                    }
-                  },
-                  child: Text(
-                    'Register',
-                    style: TextStyle(
-                      fontSize: 20,
                     ),
-                  ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    TextFormField(
+                      controller: name,
+                      keyboardType: TextInputType.name,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your name';
+                        }
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Name',
+                      ),
+                    ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    InputDecorator(
+                      decoration: InputDecoration(
+                        label: Text(
+                          "Service you provide",
+                          style: TextStyle(fontSize: 20),
+                        ),
+                      ),
+                      child: DropdownSearch(
+                        mode: Mode.BOTTOM_SHEET,
+                        showSearchBox: true,
+                        items: fields,
+                        enabled: true,
+                        onChanged: (value) {
+                          setState(() {
+                            selectedField = value!;
+                          });
+                        },
+                        selectedItem: selectedField,
+                      ),
+                    ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    TextFormField(
+                      controller: workEx,
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your work experience year';
+                        }
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Years of experience',
+                      ),
+                    ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      decoration: BoxDecoration(
+                          border: Border.all(),
+                          borderRadius: BorderRadius.circular(20)),
+                      child: InkWell(
+                        onTap: PickServiceImg,
+                        child: serviceImg == null
+                            ? Container(
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.photo_library,
+                                      color: Colors.indigo,
+                                      size: 80,
+                                    ),
+                                    Text(
+                                      "Add work related images",
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : Container(
+                                width: double.infinity,
+                                height: 200,
+                                child: ListView.builder(
+                                  itemCount: serviceImg!.length,
+                                  itemBuilder:
+                                      (BuildContext context, int index) {
+                                    return ListTile(
+                                      title: Text(serviceImg![index]
+                                          .path
+                                          .removeAllWhitespace
+                                          .trim()),
+                                    );
+                                  },
+                                ),
+                              ),
+                      ),
+                    ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    TextFormField(
+                      maxLines: 3,
+                      controller: bio,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Enter Your Details';
+                        }
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Provide a decription',
+                      ),
+                    ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    TextFormField(
+                      controller: phone,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your Contact Number';
+                        }
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Contact Number',
+                      ),
+                    ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    _currentAddress == ""
+                        ? Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            decoration: BoxDecoration(
+                                border: Border.all(),
+                                borderRadius: BorderRadius.circular(20)),
+                            child: InkWell(
+                              onTap: _getCurrentLocation,
+                              child: Container(
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.location_on,
+                                      color: Colors.indigo,
+                                      size: 80,
+                                    ),
+                                    Text(
+                                      "Pick my location",
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                        : isLoading ||
+                                _currentAddress
+                                    .isEmpty // check for both conditions here
+                            ? Center(
+                                child: Container(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: <Widget>[
+                                  Text(
+                                    'Address: $_currentAddress',
+                                    style: TextStyle(fontSize: 18),
+                                  ),
+                                ],
+                              ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    InkWell(
+                      onTap: PickDocs,
+                      child: docs == null
+                          ? Container(
+                              width: double.infinity,
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              decoration: BoxDecoration(
+                                  border: Border.all(),
+                                  borderRadius: BorderRadius.circular(20)),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.folder,
+                                    color: Colors.amber,
+                                    size: 80,
+                                  ),
+                                  Text(
+                                    "Documents and Certificates",
+                                  ),
+                                ],
+                              ),
+                            )
+                          : Container(
+                              width: double.infinity,
+                              height: 200,
+                              child: ListView.builder(
+                                itemCount: docs!.length,
+                                itemBuilder: (BuildContext context, int index) {
+                                  return ListTile(
+                                    title: Text(docs![index]
+                                        .path
+                                        .removeAllWhitespace
+                                        .trim()),
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    TextFormField(
+                      controller: fee,
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your visiting charge';
+                        }
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Visiting Charges',
+                      ),
+                    ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    TextFormField(
+                      controller: range,
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your range of service';
+                        }
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'My range (KM)',
+                      ),
+                    ),
+                    SizedBox(
+                      height: 20,
+                    ),
+                    Container(
+                      height: 50,
+                      // margin: EdgeInsets.all(20),
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (_formKey.currentState!.validate()) {
+                            // Handle form submission here
+                            print("Name : ${name.text}");
+                            print("YOE : ${workEx.text}");
+                            print("Field : $selectedField");
+                            preferences.setBool("registered", true);
+                            register();
+                          }
+                        },
+                        child: Text(
+                          'Register',
+                          style: TextStyle(
+                            fontSize: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }

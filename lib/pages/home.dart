@@ -1,11 +1,7 @@
 // ignore_for_file: prefer_const_constructors, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:spot_noww/main.dart';
-import 'package:spot_noww/pages/Register.dart';
 import 'package:spot_noww/pages/homePage.dart';
-import 'package:spot_noww/pages/login.dart';
 import 'package:spot_noww/pages/profile.dart';
 import 'package:spot_noww/utilities/global.dart';
 
@@ -23,6 +19,7 @@ class _HomeState extends State<Home> {
   final List<Widget> _screens = [
     HomePage(),
     ProfilePage(),
+    // PartnerSearchPage(),
   ];
   @override
   void initState() {
